@@ -1,6 +1,98 @@
 <!DOCTYPE html>
-<html>
-  <body>
-    <h1>Hidden Layers is live</h1>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hidden Layers</title>
+  <style>
+    body {
+      background: linear-gradient(180deg, #f6f3ff, #ffffff);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 { font-size: 32px; margin-bottom: 4px; }
+    p { color: #555; margin-top: 0; margin-bottom: 20px; }
+    #saveBtn {
+      background: black;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 18px;
+      border-radius: 12px;
+      margin-top: 20px;
+    }
+    #status { margin-top: 20px; color: #333; }
+  </style>
+</head>
+
+<body>
+  <h1>Hidden Layers</h1>
+  <p>Leave a memory where it happened.</p>
+
+  <input id="fileInput" type="file" accept="image/*" />
+  <button id="saveBtn">Save Memory</button>
+
+  <div id="status"></div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const SUPABASE_URL = window.location.origin.includes("vercel")
+      ? window.NEXT_PUBLIC_SUPABASE_URL
+      : "https://oshzotqcpezdyskuixfc.supabase.co";
+
+    const SUPABASE_KEY = window.location.origin.includes("vercel")
+      ? window.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zaHpvdHFjcGV6ZHlza3VpeGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNzkxMzgsImV4cCI6MjA3OTY1NTEzOH0.s0CiDN75yBWT_NVzKitmdWp2BugwcnFAVrDGCK3XYM0";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const fileInput = document.getElementById("fileInput");
+    const button = document.getElementById("saveBtn");
+    const status = document.getElementById("status");
+
+    button.onclick = async () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        status.innerText = "Please select a photo.";
+        return;
+      }
+
+      status.innerText = "Getting your location...";
+      
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        status.innerText = "Encoding and uploading...";
+
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Data = reader.result;
+
+          const { data, error } = await supabase
+            .from("memories")
+            .insert([
+              {
+                photo_data: base64Data,
+                lat,
+                lon
+              }
+            ]);
+
+          if (error) {
+            status.innerText = "Error saving memory.";
+            console.error(error);
+          } else {
+            status.innerText = "✨ Memory saved!";
+            fileInput.value = "";
+          }
+        };
+
+        reader.readAsDataURL(file);
+      });
+    };
+  </script>
+</body>
 </html>

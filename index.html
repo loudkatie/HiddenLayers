@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hidden Layers · Loud Labs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#ffffff" />
+
+  <style>
+    /* ---------- Jony Ive style UI ---------- */
+    body {
+      margin: 0;
+      padding: 1rem;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: radial-gradient(circle at top, #ffffff, #f7f8fb, #eef0f7);
+      color: #222;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: #777;
+      margin-bottom: 1.2rem;
+    }
+
+    .card {
+      background: #ffffffdd;
+      padding: 1rem;
+      border-radius: 16px;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+      margin-bottom: 1.5rem;
+      backdrop-filter: blur(8px);
+    }
+
+    input[type="file"] {
+      margin-top: 0.4rem;
+      margin-bottom: 0.7rem;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 0.6rem;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      resize: vertical;
+      margin-top: 0.4rem;
+      font-size: 1rem;
+    }
+
+    textarea:focus {
+      outline: 2px solid #aac4ff;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.9rem;
+      margin-top: 0.6rem;
+      border: none;
+      border-radius: 999px;
+      background: linear-gradient(145deg, #8fa0ff, #6574ff);
+      color: white;
+      font-size: 1.05rem;
+      font-weight: 600;
+      box-shadow: 0 12px 24px rgba(90,110,255,0.25);
+    }
+
+    .memory {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #eee;
+    }
+
+    .thumb {
+      width: 80px;
+      height: 80px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #eee;
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .meta {
+      font-size: 0.75rem;
+      color: #666;
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.75rem;
+      text-align: center;
+      color: #aaa;
+    }
+  </style>
+
+  <!-- Supabase JS client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+  <h1>Hidden Layers</h1>
+  <div class="subtitle">Leave memories where they happened. See what others left behind.</div>
+
+  <!-- Drop a memory -->
+  <div class="card">
+    <h3>Drop a Memory</h3>
+
+    <label>Photo</label>
+    <input type="file" id="photoInput" accept="image/*" />
+
+    <label>Caption</label>
+    <textarea id="captionInput" placeholder="Say something about this moment..."></textarea>
+
+    <button onclick="dropMemory()">Drop this memory</button>
+
+    <div id="status" style="margin-top:0.6rem; font-size:0.8rem; color:#444;"></div>
+  </div>
+
+  <!-- Memory feed -->
+  <div class="card">
+    <h3>Public Memories</h3>
+    <div id="feed">Loading…</div>
+  </div>
+
+  <footer>By Loud Labs · Open Web</footer>
+
+
+<script>
+  /* ---------------------------------------------------------
+     CONFIG: PASTE YOUR SUPABASE VALUES HERE
+  --------------------------------------------------------- */
+
+  const SUPABASE_URL = "https://oshzotqcpezdyskuixfc.supabase.co";  // ✔ your URL
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zaHpvdHFjcGV6ZHlza3VpeGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNzkxMzgsImV4cCI6MjA3OTY1NTEzOH0.s0CiDN75yBWT_NVzKitmdWp2BugwcnFAVrDGCK3XYM0";
+
+  const supabase = supabasejs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+
+
+  /* ---------------------------------------------------------
+     FEATURE 1: DROP A MEMORY
+  --------------------------------------------------------- */
+
+  async function dropMemory() {
+    const status = document.getElementById("status");
+    status.innerHTML = "Processing…";
+
+    const fileInput = document.getElementById("photoInput");
+    const caption = document.getElementById("captionInput").value;
+
+    if (!fileInput.files.length) {
+      status.innerHTML = "Please choose a photo.";
+      return;
+    }
+
+    // read image as base64
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async function(evt) {
+      const base64Image = evt.target.result;
+
+      // get location
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const { latitude, longitude } = pos.coords;
+
+        // insert into Supabase
+        let { error } = await supabase
+          .from("memories")
+          .insert({
+            photo_data: base64Image,
+            note: caption,
+            lat: latitude,
+            lng: longitude
+          });
+
+        if (error) {
+          status.innerHTML = "Error posting memory.";
+          console.error(error);
+        } else {
+          status.innerHTML = "Memory posted! Refreshing…";
+          loadFeed();
+        }
+      },
+      () => {
+        status.innerHTML = "Location permission denied.";
+      });
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+
+
+  /* ---------------------------------------------------------
+     FEATURE 2: LOAD FEED
+  --------------------------------------------------------- */
+
+  async function loadFeed() {
+    const feed = document.getElementById("feed");
+    feed.innerHTML = "Loading…";
+
+    let { data, error } = await supabase
+      .from("memories")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      feed.innerHTML = "Error loading feed.";
+      return;
+    }
+
+    if (!data.length) {
+      feed.innerHTML = "No memories yet.";
+      return;
+    }
+
+    let html = "";
+
+    data.forEach(mem => {
+      html += `
+        <div class="memory">
+          <div class="thumb"><img src="${mem.photo_data}" /></div>
+          <div>
+            <div>${mem.note || ""}</div>
+            <div class="meta">${new Date(mem.created_at).toLocaleString()}</div>
+            <div class="meta">${mem.lat.toFixed(4)}, ${mem.lng.toFixed(4)}</div>
+          </div>
+        </div>
+      `;
+    });
+
+    feed.innerHTML = html;
+  }
+
+  loadFeed();
+</script>
+
+</body>
+</html>
